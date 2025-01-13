@@ -1,12 +1,15 @@
 import "./App.css";
+import { AuthProvider } from "./hooks/authLogin/auth";
+import { ToastProvider } from "./hooks/toast/ToastProvider";
 import { Rotas } from "./routes/Routes";
-import { AuthProvider } from "./components/context/AuthContext";
 
 function App() {
   return (
     <>
       <AuthProvider>
-        <Rotas />
+        <ToastProvider>
+          <Rotas />
+        </ToastProvider>
       </AuthProvider>
     </>
   );

@@ -1,5 +1,15 @@
+.feedbackError {
+  color: red;
+  background-color: #ffe6e6;
+  padding: 10px;
+  border-radius: 5px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
 .inputError {
   border-color: #ff4444 !important;
+  background-color: rgba(255, 68, 68, 0.05);
 }
 
 .errorMessage {
@@ -7,15 +17,6 @@
   font-size: 12px;
   margin-top: 4px;
   display: block;
-}
-
-.generalError {
-  color: #ff4444;
-  text-align: center;
-  margin-bottom: 16px;
-  padding: 8px;
-  background-color: rgba(255, 68, 68, 0.1);
-  border-radius: 4px;
 }
 
 .container {
@@ -114,6 +115,23 @@
   margin: 30px 0 20px;
 }
 
+.btncadastro p {
+  color: black;
+}
+
+.register {
+  color: white;
+  text-decoration: none;
+  font-weight: bold;
+  margin-left: 5px;
+  transition: color 0.3s ease;
+}
+
+.register:hover {
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: underline;
+}
+
 .btncadastro p button {
   margin-top: 20px;
 }
@@ -123,8 +141,29 @@
   text-decoration: underline;
 }
 
+.form button:disabled {
+  background-color: rgba(255, 255, 255, 0.5);
+  cursor: not-allowed;
+  transform: none;
+}
+
 @media screen and (max-width: 768px) {
   .form {
     width: 80%;
   }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.form {
+  animation: fadeIn 0.5s ease-out;
 }

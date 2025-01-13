@@ -3,9 +3,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaUser, FaLock } from "react-icons/fa";
 import { MdEmail } from "react-icons/md";
+import { cadastrarUsuario } from "../../services/apiService";
+import { useToast } from "../../hooks/toast/ToastProvider";
 
-export function Cadastro({ navigateTo }) {
+export function Cadastro() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const handleNavigationLogin = () => navigate("/");
 
@@ -24,7 +28,7 @@ export function Cadastro({ navigateTo }) {
     general: "",
   });
 
-  const [feedbackMessage, setFeedbackMessage] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const validateForm = () => {
     let isValid = true;
@@ -36,33 +40,22 @@ export function Cadastro({ navigateTo }) {
       general: "",
     };
 
-    // Validação do nome
     if (formData.nome.trim().length < 3) {
       newErrors.nome = "O nome deve ter pelo menos 3 caracteres";
       isValid = false;
     }
 
-    // Validação do email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email.trim())) {
       newErrors.email = "Digite um email válido";
       isValid = false;
     }
 
-    // Verificar se o email já está cadastrado
-    const storedUserData = JSON.parse(localStorage.getItem("userData"));
-    if (storedUserData && storedUserData.email === formData.email.trim()) {
-      newErrors.email = "Este email já está cadastrado";
-      isValid = false;
-    }
-
-    // Validação da senha
     if (formData.senha.length < 6) {
       newErrors.senha = "A senha deve ter pelo menos 6 caracteres";
       isValid = false;
     }
 
-    // Validação da confirmação de senha
     if (formData.senha !== formData.confirmSenha) {
       newErrors.confirmSenha = "As senhas não coincidem";
       isValid = false;
@@ -82,51 +75,69 @@ export function Cadastro({ navigateTo }) {
     e.preventDefault();
 
     if (validateForm()) {
+      setIsLoading(true);
       try {
         const userData = {
           nome: formData.nome.trim(),
           email: formData.email.trim(),
           senha: formData.senha,
+          confirmaSenha: formData.confirmSenha,
         };
 
-        localStorage.setItem("userData", JSON.stringify(userData));
+        await cadastrarUsuario(userData);
 
-        setFeedbackMessage({
-          type: "success",
-          text: "Cadastro realizado com sucesso!",
+        showToast("Cadastro realizado com sucesso!", "success", 3000);
+        setShowSuccess(true);
+
+        setFormData({
+          nome: "",
+          email: "",
+          senha: "",
+          confirmSenha: "",
         });
 
-        // Redireciona para a página de login após 3 segundos
         setTimeout(() => {
-          setFeedbackMessage(null);
-          handleNavigationLogin;
-        }, 3000);
+          navigate("/");
+        }, 2000);
       } catch (error) {
-        setFeedbackMessage({
-          type: "error",
-          text: "Erro ao realizar cadastro. Tente novamente.",
-        });
+        const errorMessage =
+          error.response?.data?.message ||
+          "Erro ao realizar cadastro. Tente novamente.";
+        showToast(errorMessage, "error", 3000);
+        setShowSuccess(false);
+
+        if (error.response?.status === 409) {
+          setErrors((prev) => ({
+            ...prev,
+            email: "Este email já está cadastrado",
+          }));
+        } else {
+          setErrors((prev) => ({
+            ...prev,
+            general: errorMessage,
+          }));
+        }
+      } finally {
+        setIsLoading(false);
       }
     }
   };
 
   return (
     <div className={styles.container}>
+      {showSuccess && (
+        <div className={styles.successMessage}>
+          <div className={styles.successContent}>
+            <h2>Cadastro Realizado com Sucesso!</h2>
+            <p>
+              Você será redirecionado para a página de login em instantes...
+            </p>
+          </div>
+        </div>
+      )}
+
       <form className={styles.form} onSubmit={handleCadastro}>
         <h1>Cadastro</h1>
-
-        {/* Mensagem de feedback */}
-        {feedbackMessage && (
-          <div
-            className={
-              feedbackMessage.type === "success"
-                ? styles.feedbackSuccess
-                : styles.feedbackError
-            }
-          >
-            {feedbackMessage.text}
-          </div>
-        )}
 
         {errors.general && (
           <div className={styles.generalError}>{errors.general}</div>
@@ -196,11 +207,13 @@ export function Cadastro({ navigateTo }) {
           )}
         </div>
 
-        <button type="submit">Cadastrar</button>
+        <button type="submit" disabled={isLoading}>
+          {isLoading ? "Cadastrando..." : "Cadastrar"}
+        </button>
 
         <div className={styles.btncadastro}>
           <p>
-            Já possui uma conta?
+            Já possui uma conta?{" "}
             <button type="button" onClick={handleNavigationLogin}>
               Fazer login
             </button>

@@ -1,142 +1,100 @@
+import { useState, useContext } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
+import { AuthContext } from "../../hooks/authLogin/auth";
 import styles from "./Login.module.css";
-import { useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { FaUser, FaLock } from "react-icons/fa";
 
 export function Login() {
+  const navigate = useNavigate();
+  const { signIn } = useContext(AuthContext);
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
-  const [errors, setErrors] = useState({
-    email: "",
-    senha: "",
-    general: "",
-  });
-  const navigate = useNavigate();
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { token } = useContext(AuthContext);
 
-  const handleNavigationCadastro = () => navigate("/cadastro");
-
-  const validateForm = () => {
-    let isValid = true;
-    const newErrors = {
-      email: "",
-      senha: "",
-      general: "",
-    };
-
-    // Limpa os espaços em branco
-    const espacoEmail = email.trim();
-    const espacoSenha = senha.trim();
-
-    // Validação de email vazio
-    if (!espacoEmail) {
-      newErrors.email = "O email é obrigatório";
-      isValid = false;
-    }
-
-    // Validação de senha vazia
-    if (!espacoSenha) {
-      newErrors.senha = "A senha é obrigatória";
-      isValid = false;
-    }
-
-    // Busca dados do usuário no localStorage
-    const storedUserData = JSON.parse(localStorage.getItem("userData"));
-
-    // Verifica se existe algum usuário cadastrado
-    if (!storedUserData) {
-      newErrors.general = "Nenhum usuário cadastrado";
-      isValid = false;
-    } else if (espacoEmail && espacoSenha) {
-      // Só verifica se ambos foram preenchidos
-      // Verifica email
-      if (storedUserData.email !== espacoEmail) {
-        newErrors.email = "Email não cadastrado";
-        isValid = false;
-      }
-      // Verifica senha apenas se o email estiver correto
-      else if (storedUserData.senha !== espacoSenha) {
-        newErrors.senha = "Senha incorreta";
-        isValid = false;
-      }
-    }
-
-    setErrors(newErrors);
-    return isValid;
-  };
-
-  const handleLogin = (e) => {
+  const handleSignIn = async (e) => {
     e.preventDefault();
+    setError("");
+    setIsLoading(true);
 
-    if (validateForm()) {
-      // Login bem sucedido
-      localStorage.setItem(
-        "loggedUser",
-        JSON.stringify({ email: email.trim() })
-      );
-      navigate("/home");
+    const data = { email, senha };
+
+    try {
+      await signIn(data);
+    } catch (err) {
+      if (err.response) {
+        switch (err.response.status) {
+          case 404:
+            setError("Email não cadastrado");
+            break;
+          case 401:
+            setError("Senha incorreta");
+            break;
+          case 400:
+            setError("Por favor, preencha todos os campos");
+            break;
+          default:
+            setError("Erro ao fazer login. Tente novamente.");
+        }
+      } else {
+        setError("Erro de conexão. Verifique sua internet.");
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  if (token) {
+    return <Navigate to="/home" />;
+  }
 
   return (
     <div className={styles.container}>
-      <form className={styles.form} onSubmit={handleLogin}>
+      <form onSubmit={handleSignIn} className={styles.form}>
         <h1>Login</h1>
+
+        {error && <div className={styles.feedbackError}>{error}</div>}
 
         <div className={styles.inputfield}>
           <input
             type="email"
+            id="email"
+            placeholder="Digite seu e-mail"
             value={email}
-            placeholder="Email do administrador"
             onChange={(e) => {
               setEmail(e.target.value);
-              // Limpa o erro quando o usuário começa a digitar
-              setErrors((prev) => ({ ...prev, email: "", general: "" }));
+              setError("");
             }}
-            className={errors.email ? styles.inputError : ""}
+            className={error ? styles.inputError : ""}
+            required
           />
-          <FaUser className={styles.icon} />
-          {errors.email && (
-            <span className={styles.errorMessage}>{errors.email}</span>
-          )}
         </div>
 
         <div className={styles.inputfield}>
           <input
             type="password"
+            id="password"
+            placeholder="Digite sua senha"
             value={senha}
-            placeholder="Senha"
             onChange={(e) => {
               setSenha(e.target.value);
-              // Limpa o erro quando o usuário começa a digitar
-              setErrors((prev) => ({ ...prev, senha: "", general: "" }));
+              setError("");
             }}
-            className={errors.senha ? styles.inputError : ""}
+            className={error ? styles.inputError : ""}
+            required
           />
-          <FaLock className={styles.icon} />
-          {errors.senha && (
-            <span className={styles.errorMessage}>{errors.senha}</span>
-          )}
         </div>
 
-        {errors.general && (
-          <div className={styles.generalError}>{errors.general}</div>
-        )}
-
-        <div className={styles.recallforget}>
-          <label>
-            <input type="checkbox" />
-            Lembrar de mim
-          </label>
-        </div>
-
-        <button type="submit">Entrar</button>
+        <button type="submit" disabled={isLoading}>
+          {isLoading ? "Entrando..." : "Entrar"}
+        </button>
 
         <div className={styles.btncadastro}>
           <p>
-            Não tem uma conta?
-            <button type="button" onClick={handleNavigationCadastro}>
-              Cadastrar
-            </button>
+            Não tem uma conta?{" "}
+            <a href="/cadastro" className={styles.register}>
+              Cadastrar-se
+            </a>
           </p>
         </div>
       </form>

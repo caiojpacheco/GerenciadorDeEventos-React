@@ -1,54 +1,146 @@
-import React, { useState } from "react";
-import { Calendar, MapPin, Edit2, Trash2, Plus } from "lucide-react";
+import React, { useState, useContext, useEffect } from "react";
+import axios from "axios";
+import { Calendar, MapPin, Edit2, Trash2, Plus, LogOut } from "lucide-react";
 import styles from "./Home.module.css";
+import { AuthContext } from "../../hooks/authLogin/auth";
+import { useToast } from "../../hooks/toast/ToastProvider";
+import { api } from "../../services/apiService";
+import { useNavigate } from 'react-router-dom';
 
 const Home = () => {
-  const [events, setEvents] = useState([
-    {
-      id: 1,
-      title: "Tech Conference 2025",
-      date: "2025-03-15",
-      location: "São Paulo Convention Center",
-      image: "https://picsum.photos/seed/picsum/400/200",
-    },
-    {
-      id: 2,
-      title: "Music Festival",
-      date: "2025-04-20",
-      location: "Parque Ibirapuera",
-      image: "https://picsum.photos/seed/picsum/400/200",
-    },
-  ]);
+  const { id } = useContext(AuthContext);
+  const { token } = useContext(AuthContext);
+  const { showToast } = useToast();
+  const { signOut } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [newEvent, setNewEvent] = useState({
-    title: "",
-    date: "",
-    location: "",
-    image: "",
+    nome: "",
+    data: "",
+    localizacao: "",
+    imagem: "",
+    idAdm: id,
   });
 
-  const handleAddEvent = () => {
-    const eventToAdd = {
-      id: events.length + 1,
-      ...newEvent,
-    };
-    setEvents([...events, eventToAdd]);
-    setNewEvent({ title: "", date: "", location: "", image: "" });
-    setIsAddModalOpen(false);
+  const [eventosAgendados, setEventosAgendados] = useState([]);
+
+  const deletaEvento = async (id) => {
+    try {
+      await api.delete(`/eventos/${id}`);
+      setEventosAgendados((prevEventos) =>
+        prevEventos.filter((evento) => evento.idEvento !== id)
+      );
+    } catch (error) {
+      alert("Erro ao deletar!");
+    }
   };
 
-  const handleEditEvent = (event) => {
-    const updatedEvents = events.map((e) =>
-      e.id === event.id ? { ...e, ...editingEvent } : e
-    );
-    setEvents(updatedEvents);
-    setEditingEvent(null);
+  const chamaEventos = async () => {
+    try {
+      const response = await api.get(`/eventos/admin/${id}`);
+      setEventosAgendados(response.data);
+    } catch (error) {
+      alert("Erro: ", error.response);
+    }
   };
 
-  const handleDeleteEvent = (eventId) => {
-    setEvents(events.filter((event) => event.id !== eventId));
+  useEffect(() => {
+    chamaEventos();
+  }, []);
+
+  const validateImageUrl = (url) => {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const criarEvento = async () => {
+    try {
+      const response = await api.post("/eventos", newEvent, {
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      setEventosAgendados([...eventosAgendados, response.data]);
+    } catch (error) {
+      console.error("Erro ao criar evento:", error);
+      throw new Error("Erro ao criar evento");
+    }
+  };
+
+  const handleAddEvent = async () => {
+    if (!newEvent.nome || !newEvent.data || !newEvent.localizacao) {
+      showToast("Por favor, preencha todos os campos obrigatórios.", "error", 3000);
+      return;
+    }
+
+    if (!newEvent.imagem) {
+      showToast("Por favor, insira a URL da imagem do evento.", "error", 3000);
+      return;
+    }
+
+    if (!validateImageUrl(newEvent.imagem)) {
+      showToast("Por favor, insira uma URL de imagem válida.", "error", 3000);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await criarEvento();
+      showToast("Evento criado com sucesso!", "success", 3000);
+      setNewEvent({
+        nome: "",
+        data: "",
+        localizacao: "",
+        imagem: "",
+        idAdm: id || "",
+      });
+      setIsAddModalOpen(false);
+    } catch (error) {
+      showToast("Erro ao criar evento. Tente novamente.", "error", 3000);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const editaEvento = async () => {
+    try {
+      const updatedEvent = {
+        ...editingEvent,
+        data: new Date(editingEvent.data).toISOString(),
+      };
+
+      const response = await api.put(`/eventos/${editingEvent.idEvento}`, updatedEvent, {
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+
+      setEventosAgendados((prevEventos) =>
+        prevEventos.map((evento) =>
+          evento.idEvento === editingEvent.idEvento ? response.data : evento
+        )
+      );
+
+      showToast("Evento editado com sucesso!", "success", 3000);
+      setEditingEvent(null);
+    } catch (error) {
+      showToast("Erro ao editar evento. Tente novamente.", "error", 3000);
+      console.error("Erro ao editar evento:", error);
+    }
+  };
+
+  const handleLogout = () => {
+    signOut();
+    navigate('/');
   };
 
   return (
@@ -58,48 +150,63 @@ const Home = () => {
         <button
           className={styles.buttonPrimary}
           onClick={() => setIsAddModalOpen(true)}
+          disabled={isLoading}
         >
           <Plus size={20} />
           Adicionar Evento
         </button>
+
+        <button className={styles.buttonPrimary} onClick={handleLogout}>Fazer logout</button>
       </div>
 
       <div className={styles.eventsGrid}>
-        {events.map((event) => (
-          <div key={event.id} className={styles.eventCard}>
+        {eventosAgendados.map((event) => (
+          <div key={event.idEvento} className={styles.eventCard}>
             <div className={styles.eventImage}>
-              <img src={event.image} alt={event.title} />
+              <img
+                src={event.imagem}
+                alt={event.nome}
+                onError={(e) => {
+                  e.target.src = "/api/placeholder/400/200";
+                  e.target.onerror = null;
+                }}
+              />
             </div>
             <div className={styles.eventContent}>
-              <h2>{event.title}</h2>
-              {editingEvent?.id === event.id ? (
+              <h2>{event.nome}</h2>
+              {editingEvent?.idEvento === event.idEvento ? (
                 <div className={styles.editForm}>
                   <input
                     type="date"
-                    value={editingEvent.date}
+                    value={editingEvent.data}
                     onChange={(e) =>
-                      setEditingEvent({ ...editingEvent, date: e.target.value })
+                      setEditingEvent({ ...editingEvent, data: e.target.value })
                     }
+                    disabled={isLoading}
                   />
                   <input
-                    value={editingEvent.location}
+                    value={editingEvent.localizacao}
                     onChange={(e) =>
                       setEditingEvent({
                         ...editingEvent,
-                        location: e.target.value,
+                        localizacao: e.target.value,
                       })
                     }
+                    disabled={isLoading}
+                    placeholder="Localização"
                   />
                   <div className={styles.buttonGroup}>
                     <button
                       className={styles.button}
-                      onClick={() => handleEditEvent(event)}
+                      onClick={editaEvento}
+                      disabled={isLoading}
                     >
-                      Salvar
+                      {isLoading ? "Salvando..." : "Salvar"}
                     </button>
                     <button
                       className={styles.buttonSecondary}
                       onClick={() => setEditingEvent(null)}
+                      disabled={isLoading}
                     >
                       Cancelar
                     </button>
@@ -109,27 +216,29 @@ const Home = () => {
                 <div className={styles.eventDetails}>
                   <div className={styles.eventInfo}>
                     <Calendar size={16} />
-                    <span>{new Date(event.date).toLocaleDateString()}</span>
+                    <span>{new Date(event.data).toLocaleDateString()}</span>
                   </div>
                   <div className={styles.eventInfo}>
                     <MapPin size={16} />
-                    <span>{event.location}</span>
+                    <span>{event.localizacao}</span>
                   </div>
                 </div>
               )}
             </div>
             <div className={styles.eventActions}>
-              {editingEvent?.id !== event.id && (
+              {editingEvent?.idEvento !== event.idEvento && (
                 <>
                   <button
                     className={styles.buttonIcon}
                     onClick={() => setEditingEvent(event)}
+                    disabled={isLoading}
                   >
                     <Edit2 size={16} />
                   </button>
                   <button
                     className={styles.buttonDanger}
-                    onClick={() => handleDeleteEvent(event.id)}
+                    onClick={() => deletaEvento(event.idEvento)}
+                    disabled={isLoading}
                   >
                     <Trash2 size={16} />
                   </button>
@@ -148,6 +257,7 @@ const Home = () => {
               <button
                 className={styles.buttonIcon}
                 onClick={() => setIsAddModalOpen(false)}
+                disabled={isLoading}
               >
                 ✕
               </button>
@@ -155,37 +265,46 @@ const Home = () => {
             <div className={styles.modalContent}>
               <input
                 placeholder="Nome do evento"
-                value={newEvent.title}
+                value={newEvent.nome}
                 onChange={(e) =>
-                  setNewEvent({ ...newEvent, title: e.target.value })
+                  setNewEvent({ ...newEvent, nome: e.target.value })
                 }
+                disabled={isLoading}
+                required
               />
               <input
                 type="date"
-                value={newEvent.date}
+                value={newEvent.data}
                 onChange={(e) =>
-                  setNewEvent({ ...newEvent, date: e.target.value })
+                  setNewEvent({ ...newEvent, data: e.target.value })
                 }
+                disabled={isLoading}
+                required
               />
               <input
                 placeholder="Localização"
-                value={newEvent.location}
+                value={newEvent.localizacao}
                 onChange={(e) =>
-                  setNewEvent({ ...newEvent, location: e.target.value })
+                  setNewEvent({ ...newEvent, localizacao: e.target.value })
                 }
+                disabled={isLoading}
+                required
               />
               <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  setNewEvent({
-                    ...newEvent,
-                    image: "/api/placeholder/400/200",
-                  });
-                }}
+                placeholder="URL da imagem do evento"
+                value={newEvent.imagem}
+                onChange={(e) =>
+                  setNewEvent({ ...newEvent, imagem: e.target.value })
+                }
+                disabled={isLoading}
+                required
               />
-              <button className={styles.buttonPrimary} onClick={handleAddEvent}>
-                Salvar
+              <button
+                className={styles.buttonPrimary}
+                onClick={handleAddEvent}
+                disabled={isLoading}
+              >
+                {isLoading ? "Salvando..." : "Salvar"}
               </button>
             </div>
           </div>
